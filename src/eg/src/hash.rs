@@ -3,12 +3,11 @@
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine as _};
 use digest::{FixedOutput, Update};
-use hmac::{Hmac, Mac};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use util::array_ascii::ArrayAscii;
 
-type HmacSha256 = Hmac<sha2::Sha256>;
+use libcrux::hmac;
 
 // "In ElectionGuard, all inputs that are used as the HMAC key, i.e. all inputs to the first
 // argument of H have a fixed length of exactly 32 bytes."
@@ -16,6 +15,9 @@ type HmacSha256 = Hmac<sha2::Sha256>;
 // byte array of 32 bytes."
 pub const HVALUE_BYTE_LEN: usize = 32;
 type HValueByteArray = [u8; HVALUE_BYTE_LEN];
+
+pub const HMAC_OPT_LEN: Option<usize> = Some(HVALUE_BYTE_LEN);
+pub const HMAC_ALGORITHM: hmac::Algorithm = hmac::Algorithm::Sha256;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HValue(pub HValueByteArray);
@@ -248,22 +250,22 @@ impl<'de> Deserialize<'de> for HValue {
 
 /// ElectionGuard `H` hash function.
 pub fn eg_h(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
-    // to only fail on slice of incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key.as_ref()).unwrap();
+    let hmac_sha256 = hmac::hmac(HMAC_ALGORITHM, key.as_ref(), data.as_ref(), HMAC_OPT_LEN);
 
-    AsRef::<[u8; 32]>::as_ref(&hmac_sha256.chain(data).finalize_fixed()).into()
+    #[allow(clippy::unwrap_used)]
+    // hmac returns a Vec, since the length is parametric
+    // in this case it will always have length 32 (HVALUE_BYTE_LEN)
+    HValue::from(HValueByteArray::try_from(hmac_sha256).unwrap())
 }
 
 /// Identical to `H` but separate to follow the specification used to for [`crate::guardian_share::GuardianEncryptedShare`]
 pub fn eg_hmac(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
-    // to only fail on slice of incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key.as_ref()).unwrap();
+    let hmac_sha256 = hmac::hmac(HMAC_ALGORITHM, key.as_ref(), data.as_ref(), HMAC_OPT_LEN);
 
-    AsRef::<[u8; 32]>::as_ref(&hmac_sha256.chain(data).finalize_fixed()).into()
+    #[allow(clippy::unwrap_used)]
+    // hmac returns a Vec, since the length is parametric
+    // in this case it will always have length 32 (HVALUE_BYTE_LEN)
+    HValue::from(HValueByteArray::try_from(hmac_sha256).unwrap())
 }
 
 #[cfg(test)]
@@ -313,12 +315,13 @@ mod test_eg_h {
 
 // ElectionGuard "H" function (for WebAssembly)
 pub fn eg_h_js(key: &[u8], data: &[u8]) -> String {
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` only fails on slice of
-    // incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key).unwrap();
+    let hmac_sha256 = hmac::hmac(HMAC_ALGORITHM, key.as_ref(), data.as_ref(), HMAC_OPT_LEN);
 
-    general_purpose::URL_SAFE_NO_PAD.encode(AsRef::<[u8; 32]>::as_ref(
-        &hmac_sha256.chain(data).finalize_fixed(),
-    ))
+    #[allow(clippy::unwrap_used)]
+    // hmac returns a Vec, since the length is parametric
+    // in this case it will always have length 32 (HVALUE_BYTE_LEN)
+
+    general_purpose::URL_SAFE_NO_PAD.encode(
+	HValueByteArray::try_from(hmac_sha256).unwrap()
+    )
 }
