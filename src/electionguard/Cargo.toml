@@ -7,7 +7,9 @@ publish = false
 [dependencies]
 anyhow = "1.0.70"
 clap = { version = "4.3.3", features = ["derive", "env"] }
-rand_core = { version = "0.6.4", features = ["getrandom"] }
+
+getrandom = { version = "0.2", features = ["js"] }
+rand_core = { version = "0.6.4" }
 
 eg = { path = "../eg" }
 util = { path = "../util" }
