@@ -6,7 +6,10 @@ publish = false
 
 [dependencies]
 digest = "0.10"
-hmac = "0.12"
+
+# hmac = "0.12"
+hacl = { git = "https://github.com/hacl-star/hacl-star", branch = "afromher_rs" }
+
 itertools = "0.12"
 lazy_static = "1.4"
 num-bigint = "0.4"

@@ -3,12 +3,10 @@
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine as _};
 use digest::{FixedOutput, Update};
-use hmac::{Hmac, Mac};
+use hacl::hmac::compute_sha2_256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use util::array_ascii::ArrayAscii;
-
-type HmacSha256 = Hmac<sha2::Sha256>;
 
 // "In ElectionGuard, all inputs that are used as the HMAC key, i.e. all inputs to the first
 // argument of H have a fixed length of exactly 32 bytes."
@@ -248,22 +246,28 @@ impl<'de> Deserialize<'de> for HValue {
 
 /// ElectionGuard `H` hash function.
 pub fn eg_h(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
+    let mut arr: [u8; 32] = [0; 32];
+    let dst: &mut [u8] = &mut arr;
+    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
+
     // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
     // to only fail on slice of incorrect size.
     #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key.as_ref()).unwrap();
-
-    AsRef::<[u8; 32]>::as_ref(&hmac_sha256.chain(data).finalize_fixed()).into()
+    let res_arr: HValueByteArray = dst.try_into().unwrap();
+    res_arr.into()
 }
 
 /// Identical to `H` but separate to follow the specification used to for [`crate::guardian_share::GuardianEncryptedShare`]
 pub fn eg_hmac(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
+    let mut arr: [u8; 32] = [0; 32];
+    let dst: &mut [u8] = &mut arr;
+    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
+
     // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
     // to only fail on slice of incorrect size.
     #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key.as_ref()).unwrap();
-
-    AsRef::<[u8; 32]>::as_ref(&hmac_sha256.chain(data).finalize_fixed()).into()
+    let res_arr: HValueByteArray = dst.try_into().unwrap();
+    res_arr.into()
 }
 
 #[cfg(test)]
@@ -313,12 +317,9 @@ mod test_eg_h {
 
 // ElectionGuard "H" function (for WebAssembly)
 pub fn eg_h_js(key: &[u8], data: &[u8]) -> String {
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` only fails on slice of
-    // incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let hmac_sha256 = HmacSha256::new_from_slice(key).unwrap();
+    let mut arr: [u8; 32] = [0; 32];
+    let dst: &mut [u8] = &mut arr;
+    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
 
-    general_purpose::URL_SAFE_NO_PAD.encode(AsRef::<[u8; 32]>::as_ref(
-        &hmac_sha256.chain(data).finalize_fixed(),
-    ))
+    general_purpose::URL_SAFE_NO_PAD.encode(dst)
 }
