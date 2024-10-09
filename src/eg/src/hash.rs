@@ -246,28 +246,16 @@ impl<'de> Deserialize<'de> for HValue {
 
 /// ElectionGuard `H` hash function.
 pub fn eg_h(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
-    let mut arr: [u8; 32] = [0; 32];
-    let dst: &mut [u8] = &mut arr;
-    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
-
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
-    // to only fail on slice of incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let res_arr: HValueByteArray = dst.try_into().unwrap();
-    res_arr.into()
+    let mut arr = HValueByteArray::default();
+    compute_sha2_256(&mut arr, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
+    arr.into()
 }
 
 /// Identical to `H` but separate to follow the specification used to for [`crate::guardian_share::GuardianEncryptedShare`]
 pub fn eg_hmac(key: &HValue, data: &dyn AsRef<[u8]>) -> HValue {
-    let mut arr: [u8; 32] = [0; 32];
-    let dst: &mut [u8] = &mut arr;
-    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
-
-    // `unwrap()` is justified here because `HmacSha256::new_from_slice()` seems
-    // to only fail on slice of incorrect size.
-    #[allow(clippy::unwrap_used)]
-    let res_arr: HValueByteArray = dst.try_into().unwrap();
-    res_arr.into()
+    let mut arr = HValueByteArray::default();
+    compute_sha2_256(&mut arr, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
+    arr.into()
 }
 
 #[cfg(test)]
@@ -317,9 +305,8 @@ mod test_eg_h {
 
 // ElectionGuard "H" function (for WebAssembly)
 pub fn eg_h_js(key: &[u8], data: &[u8]) -> String {
-    let mut arr: [u8; 32] = [0; 32];
-    let dst: &mut [u8] = &mut arr;
-    compute_sha2_256(dst, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
+    let mut arr = HValueByteArray::default();
+    compute_sha2_256(&mut arr, key.as_ref(), 32, data.as_ref(), data.as_ref().len() as u32);
 
-    general_purpose::URL_SAFE_NO_PAD.encode(dst)
+    general_purpose::URL_SAFE_NO_PAD.encode(&mut arr)
 }
